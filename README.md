@@ -23,8 +23,8 @@ src/
 vendor/
   PretendardVariable.woff2  Pretendard 가변 폰트 (SIL OFL 1.1)
   PRETENDARD-LICENSE.txt
-dist/
-  innoforest-faq.html       빌드 결과물 (기본적으로 git 에서 제외)
+docs/
+  index.html                빌드 결과물 — GitHub Pages 가 이 폴더를 그대로 서비스한다
 ```
 
 ## 빌드
@@ -33,7 +33,16 @@ dist/
 node build.js
 ```
 
-`dist/innoforest-faq.html` 이 만들어진다. 별도 의존성 없이 Node.js 만 있으면 된다.
+`docs/index.html` 이 만들어진다. 별도 의존성 없이 Node.js 만 있으면 된다.
+
+## 배포 (GitHub Pages)
+
+`docs/` 폴더를 그대로 서비스하면 된다. 저장소 **Settings → Pages** 에서
+Source 를 `Deploy from a branch`, 브랜치를 `main`, 폴더를 `/docs` 로 지정하면
+`https://<계정>.github.io/innoforest-faq/` 로 공개된다. 빌드 과정이나 서버는 필요 없다.
+
+> **Pages 로 띄운 페이지는 읽기 전용이다.** 관리자 모드는 Claude 아티팩트 환경에서만 켜지므로,
+> 외부 방문자에게는 편집 진입로가 아예 나타나지 않는다. 검색·목록·문의 페이지·테마 전환은 그대로 동작한다.
 
 ## 콘텐츠 수정 방법
 
@@ -85,5 +94,5 @@ node build.js
 
 ## 라이선스
 
-FAQ 본문은 마크앤컴퍼니 내부 자료다.
+FAQ 본문은 마크앤컴퍼니가 운영하는 혁신의숲 서비스의 공개 도움말 내용이다.
 `vendor/PretendardVariable.woff2` 는 [Pretendard](https://github.com/orioncactus/pretendard) (SIL Open Font License 1.1) 이며 라이선스 전문은 `vendor/PRETENDARD-LICENSE.txt` 에 있다.

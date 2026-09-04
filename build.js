@@ -1,7 +1,7 @@
 /**
  * 혁신의숲 FAQ — 단일 HTML 파일 빌드
  *
- *   node build.js   ->   dist/innoforest-faq.html
+ *   node build.js   ->   docs/index.html  (GitHub Pages 가 그대로 서비스하는 경로)
  *
  * data.json(문의 내용) + src/(화면 코드) + vendor/(폰트)를 하나의 HTML로 합친다.
  * 이미지와 폰트는 외부 주소를 쓰지 않고 파일 안에 직접 담기므로,
@@ -37,8 +37,9 @@ ${shell}
 <script id="app-js">${app}${CLOSE}
 `;
 
-fs.mkdirSync(path.join(__dirname, 'dist'), { recursive: true });
-const out = path.join(__dirname, 'dist/innoforest-faq.html');
+fs.mkdirSync(path.join(__dirname, 'docs'), { recursive: true });
+fs.writeFileSync(path.join(__dirname, 'docs/.nojekyll'), '');
+const out = path.join(__dirname, 'docs/index.html');
 fs.writeFileSync(out, html);
 
 const imgs = (html.match(/data:image\//g) || []).length;
