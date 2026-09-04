@@ -193,6 +193,16 @@
   var adminMode = false;  // operator explicitly turned admin controls on
   var artifactCap = null;
   var downloadsCap = null;
+  var pendingDel = null;   // id awaiting the inline delete confirmation
+
+  // the sandbox blocks alert()/confirm()/prompt(), so all feedback happens in-page
+  function msg(text, kind) {
+    var m = $('admMsg');
+    if (!m) return;
+    m.hidden = false;
+    m.className = 'adm-msg' + (kind ? ' ' + kind : '');
+    m.textContent = text;
+  }
 
   function setAdmin(on) {
     adminMode = on;
@@ -229,6 +239,7 @@
       '<h1 class="adm-h">FAQ 관리자</h1>' +
       '<p class="adm-sub">문의를 추가·수정·삭제하고 순서를 바꾼 뒤 저장하면 새 버전이 발행돼 모든 사람에게 반영됩니다.</p>' +
       '</div><div class="adm-actions">' +
+      '<button class="btn btn-primary" id="admSave" type="button">저장하고 발행</button>' +
       '<button class="btn" id="admNew" type="button">+ 새 문의 추가</button>' +
       (downloadsCap ? '<button class="btn" id="admExport" type="button">⬇ 내용 내려받기</button>' : '') +
       '<a class="btn" href="#">FAQ 화면으로</a>' +
@@ -245,6 +256,16 @@
         '<span>' + items.length + '개</span></div><ul class="adm-list">';
       items.forEach(function (a, i) {
         var isBest = data.best.indexOf(a.id) > -1;
+        if (pendingDel === a.id) {
+          h += '<li class="adm-item is-del" data-id="' + a.id + '">' +
+            '<span class="adm-em">🗑</span>' +
+            '<span class="adm-t">「' + esc(a.title) + '」 을(를) 삭제할까요?</span>' +
+            '<span class="adm-btns">' +
+            '<button class="btn btn-sm btn-danger" data-act="del-yes">삭제</button>' +
+            '<button class="btn btn-sm" data-act="del-no">취소</button>' +
+            '</span></li>';
+          return;
+        }
         h += '<li class="adm-item' + (isBest ? ' is-best' : '') + '" data-id="' + a.id + '">' +
           '<span class="adm-em">' + esc(a.emoji || '📄') + '</span>' +
           '<span class="adm-t">' + esc(a.title) + '</span>' +
@@ -263,6 +284,7 @@
 
     $('admNew').addEventListener('click', function () { openEditor(null); });
     $('admExit').addEventListener('click', exitAdmin);
+    $('admSave').addEventListener('click', function () { publish(msg, 'admSave'); });
 
     if (downloadsCap) {
       $('admExport').addEventListener('click', function () {
@@ -284,17 +306,24 @@
           });
       });
     }
-    $('admin').addEventListener('click', function (ev) {
-      var b = ev.target.closest('button[data-act]');
-      if (!b) return;
-      var id = b.closest('.adm-item').dataset.id;
-      var act = b.dataset.act;
-      if (act === 'edit') return openEditor(id);
-      if (act === 'del') return delArticle(id);
-      if (act === 'best') return toggleBest(id);
-      if (act === 'up' || act === 'down') return move(id, act === 'up' ? -1 : 1);
-    });
   }
+
+  // one delegated listener for the whole admin list — renderAdmin() only swaps innerHTML,
+  // so attaching inside it would stack a new listener on every re-render
+  $('admin').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-act]');
+    if (!b) return;
+    var row = b.closest('.adm-item');
+    if (!row) return;
+    var id = row.dataset.id;
+    var act = b.dataset.act;
+    if (act === 'edit') return openEditor(id);
+    if (act === 'del') { pendingDel = id; return renderAdmin(); }
+    if (act === 'del-no') { pendingDel = null; return renderAdmin(); }
+    if (act === 'del-yes') return delArticle(id);
+    if (act === 'best') return toggleBest(id);
+    if (act === 'up' || act === 'down') return move(id, act === 'up' ? -1 : 1);
+  });
 
   function move(id, dir) {
     var a = byId(id);
@@ -311,7 +340,11 @@
     var i = data.best.indexOf(id);
     if (i > -1) data.best.splice(i, 1);
     else {
-      if (data.best.length >= 3) { alert('BEST는 최대 3개까지 지정할 수 있습니다. 먼저 하나를 해제해 주세요.'); return; }
+      if (data.best.length >= 3) {
+        renderAdmin();
+        msg('BEST는 최대 3개까지 지정할 수 있습니다. 먼저 하나를 해제해 주세요.', 'err');
+        return;
+      }
       data.best.push(id);
     }
     renderAdmin(); renderHome();
@@ -319,16 +352,22 @@
 
   function delArticle(id) {
     var a = byId(id);
-    if (!confirm('「' + a.title + '」 문의를 삭제할까요?\n저장하기 전까지는 새로고침으로 되돌릴 수 있습니다.')) return;
+    if (!a) return;
     data.articles.splice(data.articles.indexOf(a), 1);
     var bi = data.best.indexOf(id);
     if (bi > -1) data.best.splice(bi, 1);
+    pendingDel = null;
     renderAdmin(); renderNav(); renderHome();
+    msg('「' + a.title + '」 을(를) 지웠습니다. 아직 저장 전이라 새로고침하면 되돌아옵니다. ' +
+        '확정하려면 위의 [저장하고 발행] 을 누르세요.', 'ok');
   }
 
   /* ---------------- images ---------------- */
-  function fileToImage(file, cb) {
-    if (!file || !/^image\//.test(file.type)) { alert('이미지 파일만 넣을 수 있습니다.'); return; }
+  function fileToImage(file, cb, onErr) {
+    if (!file || !/^image\//.test(file.type)) {
+      if (onErr) onErr('이미지 파일만 넣을 수 있습니다.');
+      return;
+    }
     var fr = new FileReader();
     fr.onload = function () {
       var img = new Image();
@@ -347,7 +386,7 @@
         if (out.length > fr.result.length) out = fr.result;
         cb(out, Math.round(out.length * 0.75 / 1024));
       };
-      img.onerror = function () { alert('이미지를 읽을 수 없습니다.'); };
+      img.onerror = function () { if (onErr) onErr('이미지를 읽을 수 없습니다.'); };
       img.src = fr.result;
     };
     fr.readAsDataURL(file);
@@ -508,6 +547,11 @@
       '<button type="button" data-cmd="clear">서식 지우기</button>' +
       '<button type="button" data-cmd="html" id="edHtmlBtn">HTML 편집</button>' +
       '</div>' +
+      '<div class="ed-link" id="edLink" hidden>' +
+      '<input class="ed-in" id="edLinkUrl" placeholder="https://..." autocomplete="off">' +
+      '<button class="btn btn-sm btn-primary" id="edLinkOk" type="button">적용</button>' +
+      '<button class="btn btn-sm" id="edLinkNo" type="button">취소</button>' +
+      '</div>' +
       '<div class="ed-body doc-body" id="edBody" contenteditable="true"></div>' +
       '<textarea class="ed-ta" id="edHtml" hidden spellcheck="false"></textarea>' +
       '<p class="ed-hint">이미지는 <b>🖼 이미지 넣기</b> 버튼으로 넣거나, 캡처한 화면을 본문에 <b>바로 붙여넣기(Ctrl+V)</b> 하면 됩니다. ' +
@@ -552,6 +596,9 @@
             insertImage(url, body, ta, false);
             st.className = 'ed-status ok';
             st.textContent = '이미지를 넣었습니다 (약 ' + kb + 'KB).';
+          }, function (m) {
+            st.className = 'ed-status err';
+            st.textContent = m;
           });
           return;
         }
@@ -619,6 +666,9 @@
             insertImage(url, body, ta, htmlMode);
             st.className = 'ed-status ok';
             st.textContent = '이미지를 넣었습니다 (약 ' + kb + 'KB).';
+          }, function (m) {
+            st.className = 'ed-status err';
+            st.textContent = m;
           });
         });
         inp.click();
@@ -639,14 +689,37 @@
         applyStyle('s-', 'none');
       }
       else if (c === 'link') {
-        var url = prompt('연결할 주소를 입력하세요 (https://...)');
-        if (url) document.execCommand('createLink', false, url);
+        if (!lastRange || lastRange.collapsed) {
+          st.className = 'ed-status err';
+          st.textContent = '먼저 링크를 걸 글자를 드래그해서 선택해 주세요.';
+          return;
+        }
+        $('edLink').hidden = false;
+        $('edLinkUrl').value = '';
+        $('edLinkUrl').focus();
       }
+    });
+
+    $('edLinkNo').addEventListener('click', function () { $('edLink').hidden = true; });
+    $('edLinkOk').addEventListener('click', function () {
+      var u = $('edLinkUrl').value.trim();
+      $('edLink').hidden = true;
+      if (!u) return;
+      if (!/^[a-z][a-z0-9+.-]*:/i.test(u) && u.charAt(0) !== '#') u = 'https://' + u;
+      ensureSel();
+      document.execCommand('createLink', false, u);
+      st.className = 'ed-status ok';
+      st.textContent = '링크를 걸었습니다.';
     });
 
     $('edCancel').addEventListener('click', function () { renderAdmin(); });
     $('edBack').addEventListener('click', function () { renderAdmin(); });
-    if (!isNew) $('edDel').addEventListener('click', function () { delArticle(a.id); });
+    if (!isNew) {
+      $('edDel').addEventListener('click', function () {
+        pendingDel = a.id;   // confirm on the list, where the row shows what will go
+        renderAdmin();
+      });
+    }
 
     $('edSave').addEventListener('click', function () {
       var title = $('edTitle').value.trim();
@@ -670,7 +743,10 @@
       target.html = html;
       target.summary = textOf(html).slice(0, 120);
       renderNav(); renderHome();
-      publish(st);
+      publish(function (t, k) {
+        st.className = 'ed-status' + (k ? ' ' + k : '');
+        st.textContent = t;
+      }, 'edSave');
     });
   }
 
@@ -690,36 +766,29 @@
       '<script id="app-js">' + app + CLOSE + '\n</body>\n</html>';
   }
 
-  function publish(st) {
-    if (!artifactCap) {
-      st.className = 'ed-status err';
-      st.textContent = '이 화면에서는 저장할 수 없습니다.';
-      return;
-    }
+  // `say(text, kind)` reports progress wherever the caller wants it
+  function publish(say, btnId) {
+    var btn = btnId ? $(btnId) : null;
+    if (!artifactCap) return say('이 화면에서는 저장할 수 없습니다.', 'err');
     var doc;
     try { doc = buildDoc(); }
-    catch (e) { st.className = 'ed-status err'; st.textContent = '문서를 만드는 중 오류가 발생했습니다.'; return; }
+    catch (e) { return say('문서를 만드는 중 오류가 발생했습니다.', 'err'); }
     if (doc.length > MAX_DOC) {
-      st.className = 'ed-status err';
-      st.textContent = '문서가 너무 큽니다 (' + mb(doc.length) + ' / 상한 16MB). 이미지를 줄여 주세요.';
-      return;
+      return say('문서가 너무 큽니다 (' + mb(doc.length) + ' / 상한 16MB). 이미지를 줄여 주세요.', 'err');
     }
-    st.className = 'ed-status';
-    st.textContent = '저장하는 중… (' + mb(doc.length) + ' 발행)';
-    $('edSave').disabled = true;
+    say('저장하는 중… (' + mb(doc.length) + ' 발행)');
+    if (btn) btn.disabled = true;
     artifactCap.publish(doc).then(function () {
-      st.className = 'ed-status ok';
-      st.textContent = '저장 완료 — 새 버전이 발행되었습니다.';
+      say('저장 완료 — 새 버전이 발행되었습니다.', 'ok');
     }).catch(function (e) {
       var code = e && e.code;
-      st.className = 'ed-status err';
-      $('edSave').disabled = false;
+      if (btn) btn.disabled = false;
       if (code === 'not_writer' || code === 'not_granted') {
-        st.textContent = '편집 권한이 없는 계정입니다. 이 페이지의 편집 권한을 받은 뒤 다시 시도해 주세요.';
+        say('편집 권한이 없는 계정입니다. 이 페이지의 편집 권한을 받은 뒤 다시 시도해 주세요.', 'err');
       } else if (code === 'conflict') {
-        st.textContent = '다른 사람이 먼저 저장했습니다. 화면이 최신 버전으로 바뀌면 다시 수정해 주세요.';
+        say('다른 사람이 먼저 저장했습니다. 화면이 최신 버전으로 바뀌면 다시 수정해 주세요.', 'err');
       } else {
-        st.textContent = '저장에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+        say('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.', 'err');
       }
     });
   }

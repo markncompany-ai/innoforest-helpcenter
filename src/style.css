@@ -212,6 +212,11 @@ ul.rows{list-style:none;margin:0;padding:0;border-top:1px solid var(--border)}
 .ed-bar{display:flex;gap:4px;flex-wrap:wrap;padding:8px;border:1px solid var(--border-strong);border-bottom:none;border-radius:9px 9px 0 0;background:var(--surface-2)}
 .ed-bar button{height:28px;padding:0 10px;border:1px solid transparent;border-radius:6px;background:none;color:var(--text-2);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer}
 .ed-bar button:hover{background:var(--surface);border-color:var(--border-strong);color:var(--text)}
+.ed-link{display:flex;gap:8px;align-items:center;padding:9px 10px;
+ border:1px solid var(--border-strong);border-bottom:none;background:var(--accent-soft)}
+.ed-link .ed-in{flex:1;height:30px;padding:0 10px;font-size:13px}
+.adm-item.is-del{background:var(--danger-soft)}
+.adm-item.is-del .adm-t{color:var(--danger);font-weight:600}
 .ed-body{border:1px solid var(--border-strong);border-radius:0 0 9px 9px;background:var(--surface);padding:18px 20px;min-height:340px;max-height:60vh;overflow-y:auto}
 .ed-body:focus{outline:none;border-color:var(--accent)}
 .ed-mini{height:28px;padding:0 6px;border:1px solid var(--border-strong);border-radius:6px;
