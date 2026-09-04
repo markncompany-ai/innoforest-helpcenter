@@ -192,6 +192,7 @@
   var capReady = false;   // the artifact capability resolved in this view
   var adminMode = false;  // operator explicitly turned admin controls on
   var artifactCap = null;
+  var downloadsCap = null;
 
   function setAdmin(on) {
     adminMode = on;
@@ -229,9 +230,11 @@
       '<p class="adm-sub">문의를 추가·수정·삭제하고 순서를 바꾼 뒤 저장하면 새 버전이 발행돼 모든 사람에게 반영됩니다.</p>' +
       '</div><div class="adm-actions">' +
       '<button class="btn" id="admNew" type="button">+ 새 문의 추가</button>' +
+      (downloadsCap ? '<button class="btn" id="admExport" type="button">⬇ 내용 내려받기</button>' : '') +
       '<a class="btn" href="#">FAQ 화면으로</a>' +
       '<button class="btn" id="admExit" type="button">관리자 모드 끄기</button>' +
       '</div></div>' +
+      '<div class="adm-msg" id="admMsg" hidden></div>' +
       '<p class="adm-note"><b>편집 권한</b>이 있는 계정에서만 실제로 저장됩니다 — 권한이 없으면 저장 단계에서 거부돼요. ' +
       '저장은 페이지를 새 버전으로 발행하는 방식이라 몇 초 걸리고, 저장되면 열려 있는 모든 화면이 새 버전으로 바뀝니다.<br>' +
       '현재 문서 크기 <b>' + mb(size) + '</b> / 상한 16MB — 이미지를 넣을수록 커집니다.</p>';
@@ -260,6 +263,27 @@
 
     $('admNew').addEventListener('click', function () { openEditor(null); });
     $('admExit').addEventListener('click', exitAdmin);
+
+    if (downloadsCap) {
+      $('admExport').addEventListener('click', function () {
+        var m = $('admMsg');
+        m.hidden = false;
+        m.className = 'adm-msg';
+        m.textContent = '내려받기를 준비하는 중…';
+        downloadsCap.save({ filename: 'data.json', data: JSON.stringify(data) })
+          .then(function () {
+            m.className = 'adm-msg ok';
+            m.textContent = 'data.json 을 내려받았습니다. 공개 사이트에 반영하려면 이 파일을 저장소 폴더에 덮어쓰고 반영 스크립트를 실행하세요.';
+          })
+          .catch(function (e) {
+            var c = e && e.code;
+            m.className = 'adm-msg err';
+            if (c === 'declined') m.textContent = '내려받기를 취소했습니다.';
+            else if (c === 'rate_limited') m.textContent = '잠시 후 다시 시도해 주세요.';
+            else m.textContent = '내려받기를 할 수 없습니다.';
+          });
+      });
+    }
     $('admin').addEventListener('click', function (ev) {
       var b = ev.target.closest('button[data-act]');
       if (!b) return;
@@ -729,6 +753,13 @@
       artifactCap = cap;
       capReady = true;
       if (location.hash.slice(1) === 'admin') route();
+    }).catch(function () {});
+
+    claude.use('downloads').then(function (cap) {
+      if (!cap) return;
+      downloadsCap = cap;
+      // the admin list may already be on screen — re-render so the button appears
+      if (adminMode && location.hash.slice(1) === 'admin') renderAdmin();
     }).catch(function () {});
   }
 })();

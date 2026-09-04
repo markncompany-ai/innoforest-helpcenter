@@ -180,6 +180,10 @@ ul.rows{list-style:none;margin:0;padding:0;border-top:1px solid var(--border)}
 .adm-h{font-size:23px;font-weight:700;margin:0 0 5px;letter-spacing:-.025em}
 .adm-sub{font-size:12.5px;color:var(--muted);margin:0}
 .adm-actions{display:flex;gap:8px;flex-wrap:wrap}
+.adm-msg{margin:14px 0 0;padding:11px 14px;border-radius:9px;font-size:12.5px;line-height:1.6;
+ background:var(--surface-2);border:1px solid var(--border);color:var(--text-2)}
+.adm-msg.ok{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-text)}
+.adm-msg.err{background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}
 .adm-note{margin:18px 0 0;padding:13px 15px;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:9px;background:var(--surface-2);font-size:12.5px;color:var(--text-2);line-height:1.65}
 .adm-note b{font-weight:600;color:var(--text)}
 .adm-cat{margin-top:30px}
