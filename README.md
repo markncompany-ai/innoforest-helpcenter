@@ -15,7 +15,7 @@
 
 ```
 build.js                    빌드 스크립트
-sync.cmd                    공개 사이트 반영 (빌드 + 기록 + 업로드)
+sync.cmd                    공개 사이트 반영 (내려받은 파일 회수 + 빌드 + 기록 + 업로드)
 data.json                   문의 내용 원본 (이미지 포함) — 실질적인 콘텐츠 DB
 src/
   shell.html                페이지 뼈대
@@ -40,7 +40,7 @@ node build.js
 
 `docs/` 폴더를 그대로 서비스하면 된다. 저장소 **Settings → Pages** 에서
 Source 를 `Deploy from a branch`, 브랜치를 `main`, 폴더를 `/docs` 로 지정하면
-`https://<계정>.github.io/innoforest-faq/` 로 공개된다. 빌드 과정이나 서버는 필요 없다.
+공개 주소: **https://sssyyy-hash.github.io/innoforest-faq/**
 
 > **Pages 로 띄운 페이지는 읽기 전용이다.** 관리자 모드는 Claude 아티팩트 환경에서만 켜지므로,
 > 외부 방문자에게는 편집 진입로가 아예 나타나지 않는다. 검색·목록·문의 페이지·테마 전환은 그대로 동작한다.
@@ -59,9 +59,11 @@ Source 를 `Deploy from a branch`, 브랜치를 `main`, 폴더를 `/docs` 로 �
 
 **2. 공개 사이트에 반영하기**
 
-1. 관리자 화면에서 `⬇ 내용 내려받기` 를 누른다 → `data.json` 파일이 내려받아진다
-2. 그 파일을 이 폴더의 `data.json` 에 덮어쓴다
-3. `sync.cmd` 를 더블클릭한다 (빌드 → 기록 → 업로드가 한 번에 실행된다)
+1. 관리자 화면에서 `⬇ 내용 내려받기` 를 누른다 → `data.json` 이 다운로드 폴더에 받아진다
+2. `sync.cmd` 를 더블클릭한다
+
+`sync.cmd` 가 다운로드 폴더에서 방금 받은 파일을 자동으로 찾아 가져온 뒤,
+빌드 → 기록 → 업로드까지 한 번에 처리한다. 파일을 직접 옮길 필요는 없다.
 
 1~2분 뒤 공개 주소에 반영된다. 터미널을 쓴다면 `sync.cmd` 대신 아래와 같다.
 

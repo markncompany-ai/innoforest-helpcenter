@@ -7,10 +7,32 @@ echo  혁신의숲 FAQ - 공개 사이트 반영
 echo  ================================
 echo.
 
+rem 다운로드 폴더에서 방금 받은 data.json 을 자동으로 찾아온다
+set "DL=%USERPROFILE%\Downloads"
+set "FOUND="
+for /f "delims=" %%f in ('dir /b /a-d /o-d "%DL%\data*.json" 2^>nul') do (
+  if not defined FOUND set "FOUND=%DL%\%%f"
+)
+
+if defined FOUND (
+  echo  다운로드 폴더에서 새 파일을 찾았습니다.
+  echo    %FOUND%
+  move /y "%FOUND%" "data.json" >nul
+  if errorlevel 1 (
+    echo  [오류] 파일을 가져오지 못했습니다.
+    pause
+    exit /b 1
+  )
+  echo  가져왔습니다.
+  echo.
+) else (
+  echo  다운로드 폴더에 새 파일이 없습니다. 기존 내용으로 진행합니다.
+  echo.
+)
+
 if not exist "data.json" (
   echo  [오류] data.json 이 없습니다.
-  echo         관리자 화면에서 "내용 내려받기" 로 받은 파일을
-  echo         이 폴더에 data.json 이라는 이름으로 넣어주세요.
+  echo         관리자 화면에서 "내용 내려받기" 를 먼저 눌러주세요.
   echo.
   pause
   exit /b 1
