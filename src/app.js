@@ -6,6 +6,8 @@
   var MAX_DOC = 16 * 1024 * 1024;
 
   var data = JSON.parse(document.getElementById('faq-data').textContent);
+  var CFG = JSON.parse(document.getElementById('app-config').textContent);
+  var TOKEN_KEY = 'if-faq-gh-token';
 
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) {
@@ -140,7 +142,7 @@
   function route() {
     var id = location.hash.slice(1);
     if (id === 'admin') {
-      if (!capReady) { location.hash = ''; return; }
+      if (!canAdmin()) { location.hash = ''; return; }
       setAdmin(true);
       renderAdmin(); show('admin');
       document.title = '관리자 · ' + TITLE;
@@ -195,6 +197,163 @@
   var downloadsCap = null;
   var pendingDel = null;   // id awaiting the inline delete confirmation
 
+  /* ---- GitHub 저장 (정적 호스팅에서 쓰는 경로) ----
+     이 페이지는 서버가 없으므로, 운영자 본인의 GitHub 토큰으로 저장소에 직접 커밋한다.
+     토큰은 이 브라우저의 localStorage 에만 남고 페이지 소스에는 절대 들어가지 않는다. */
+  function ghToken() {
+    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+  }
+  function setGhToken(t) {
+    try {
+      if (t) localStorage.setItem(TOKEN_KEY, t);
+      else localStorage.removeItem(TOKEN_KEY);
+    } catch (e) {}
+  }
+
+  function ghApi(p, opts) {
+    opts = opts || {};
+    return fetch('https://api.github.com/repos/' + CFG.owner + '/' + CFG.repo + p, {
+      method: opts.method || 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + ghToken(),
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json'
+      },
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function (r) {
+      return r.text().then(function (t) {
+        var j = {};
+        try { j = JSON.parse(t); } catch (e) {}
+        if (!r.ok) {
+          var err = new Error(j.message || ('HTTP ' + r.status));
+          err.status = r.status;
+          throw err;
+        }
+        return j;
+      });
+    });
+  }
+
+  // UTF-8 문자열을 base64 로 (큰 파일이라 조각내어 변환)
+  function b64(str) {
+    var bytes = new TextEncoder().encode(str);
+    var bin = '', CH = 0x8000;
+    for (var i = 0; i < bytes.length; i += CH) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+    }
+    return btoa(bin);
+  }
+
+  function ghSave(say, btnId) {
+    var btn = btnId ? $(btnId) : null;
+    if (!ghToken()) {
+      say('먼저 아래에서 GitHub 토큰을 연결해 주세요.', 'err');
+      return;
+    }
+    if (btn) btn.disabled = true;
+    var branch = CFG.branch, parentSha, baseTree;
+
+    say('저장하는 중… (1/5) 현재 상태 확인');
+    ghApi('/git/ref/heads/' + branch)
+      .then(function (ref) {
+        parentSha = ref.object.sha;
+        return ghApi('/git/commits/' + parentSha);
+      })
+      .then(function (commit) {
+        baseTree = commit.tree.sha;
+        say('저장하는 중… (2/5) 내용 올리는 중');
+        return ghApi('/git/blobs', {
+          method: 'POST',
+          body: { content: b64(JSON.stringify(data)), encoding: 'base64' }
+        });
+      })
+      .then(function (blob) {
+        say('저장하는 중… (3/5) 변경 목록 구성');
+        return ghApi('/git/trees', {
+          method: 'POST',
+          body: {
+            base_tree: baseTree,
+            tree: [{ path: CFG.dataPath, mode: '100644', type: 'blob', sha: blob.sha }]
+          }
+        });
+      })
+      .then(function (tree) {
+        say('저장하는 중… (4/5) 기록 남기는 중');
+        return ghApi('/git/commits', {
+          method: 'POST',
+          body: {
+            message: 'FAQ 내용 갱신',
+            tree: tree.sha,
+            parents: [parentSha]
+          }
+        });
+      })
+      .then(function (commit) {
+        say('저장하는 중… (5/5) 반영 중');
+        return ghApi('/git/refs/heads/' + branch, {
+          method: 'PATCH',
+          body: { sha: commit.sha }
+        });
+      })
+      .then(function () {
+        if (btn) btn.disabled = false;
+        say('저장 완료 — 1~2분 뒤 공개 사이트에 반영됩니다. (반영 뒤 새로고침하면 확인돼요)', 'ok');
+      })
+      .catch(function (e) {
+        if (btn) btn.disabled = false;
+        var s = e && e.status;
+        if (s === 401) say('토큰이 올바르지 않거나 만료됐습니다. 아래에서 다시 연결해 주세요.', 'err');
+        else if (s === 403) say('이 토큰에는 저장 권한이 없습니다. 저장소 쓰기(Contents) 권한을 확인해 주세요.', 'err');
+        else if (s === 404) say('저장소를 찾을 수 없습니다. 토큰이 이 저장소에 접근할 수 있는지 확인해 주세요.', 'err');
+        else if (s === 409 || s === 422) say('다른 사람이 먼저 저장했습니다. 새로고침 후 다시 시도해 주세요.', 'err');
+        else say('저장에 실패했습니다: ' + (e && e.message ? e.message : '알 수 없는 오류'), 'err');
+      });
+  }
+
+  // 정적 호스팅에서만 보이는 토큰 연결 패널. 토큰 값은 화면에 다시 표시하지 않는다.
+  function ghPanel() {
+    if (artifactCap) return '';
+    if (ghToken()) {
+      return '<div class="gh-box is-on">' +
+        '<div class="gh-row"><b>GitHub 연결됨</b><span class="gh-sp"></span>' +
+        '<button class="btn btn-sm" id="ghOut" type="button">연결 해제</button></div>' +
+        '<p class="gh-hint">저장하면 저장소에 기록되고 1~2분 뒤 공개 사이트에 반영됩니다.</p>' +
+        '</div>';
+    }
+    return '<div class="gh-box">' +
+      '<div class="gh-row"><b>저장하려면 GitHub 토큰을 연결하세요</b></div>' +
+      '<p class="gh-hint">이 사이트는 서버가 없어서, 저장은 저장소에 직접 기록하는 방식입니다. ' +
+      '토큰은 <b>이 브라우저에만</b> 남고 페이지나 저장소에는 들어가지 않습니다.<br>' +
+      '<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">토큰 발급 페이지 열기</a>' +
+      ' → Repository access 는 <b>' + esc(CFG.owner + '/' + CFG.repo) + '</b> 만 선택하고, ' +
+      'Permissions 에서 <b>Contents 를 Read and write</b> 로 켠 뒤 만료일을 정하세요.</p>' +
+      '<div class="gh-row">' +
+      '<input class="ed-in" id="ghTok" type="password" placeholder="발급받은 토큰 붙여넣기" autocomplete="off">' +
+      '<button class="btn btn-sm btn-primary" id="ghIn" type="button">연결</button></div>' +
+      '</div>';
+  }
+
+  function wireGhPanel() {
+    if (artifactCap) return;
+    if (ghToken()) {
+      $('ghOut').addEventListener('click', function () {
+        setGhToken('');
+        renderAdmin();
+        msg('연결을 해제했습니다. 이 브라우저에서 저장하려면 다시 연결해야 합니다.');
+      });
+    } else {
+      $('ghIn').addEventListener('click', function () {
+        var t = $('ghTok').value.trim();
+        if (!t) { msg('토큰을 입력해 주세요.', 'err'); return; }
+        setGhToken(t);
+        $('ghTok').value = '';
+        renderAdmin();
+        msg('GitHub 에 연결했습니다. 이제 저장할 수 있습니다.', 'ok');
+      });
+    }
+  }
+
   // the sandbox blocks alert()/confirm()/prompt(), so all feedback happens in-page
   function msg(text, kind) {
     var m = $('admMsg');
@@ -210,8 +369,14 @@
     document.body.classList.toggle('has-banner', on);
   }
 
+  // 아티팩트 안이면 런타임이, 정적 호스팅이면 GitHub 설정이 관리자 화면의 근거가 된다.
+  // 실제 저장 권한은 저장하는 순간에 판정된다.
+  function canAdmin() {
+    return capReady || !!(CFG && CFG.owner && CFG.repo);
+  }
+
   function goAdmin() {
-    if (!capReady) return;
+    if (!canAdmin()) return;
     if (location.hash.slice(1) === 'admin') {
       // already on the admin route (e.g. inside the editor) — re-render the list in place
       setAdmin(true);
@@ -239,13 +404,15 @@
       '<h1 class="adm-h">FAQ 관리자</h1>' +
       '<p class="adm-sub">문의를 추가·수정·삭제하고 순서를 바꾼 뒤 저장하면 새 버전이 발행돼 모든 사람에게 반영됩니다.</p>' +
       '</div><div class="adm-actions">' +
-      '<button class="btn btn-primary" id="admSave" type="button">저장하고 발행</button>' +
+      '<button class="btn btn-primary" id="admSave" type="button">' +
+      (artifactCap ? '저장하고 발행' : '저장하고 공개 사이트에 반영') + '</button>' +
       '<button class="btn" id="admNew" type="button">+ 새 문의 추가</button>' +
       (downloadsCap ? '<button class="btn" id="admExport" type="button">⬇ 내용 내려받기</button>' : '') +
       '<a class="btn" href="#">FAQ 화면으로</a>' +
       '<button class="btn" id="admExit" type="button">관리자 모드 끄기</button>' +
       '</div></div>' +
       '<div class="adm-msg" id="admMsg" hidden></div>' +
+      ghPanel() +
       '<p class="adm-note"><b>편집 권한</b>이 있는 계정에서만 실제로 저장됩니다 — 권한이 없으면 저장 단계에서 거부돼요. ' +
       '저장은 페이지를 새 버전으로 발행하는 방식이라 몇 초 걸리고, 저장되면 열려 있는 모든 화면이 새 버전으로 바뀝니다.<br>' +
       '현재 문서 크기 <b>' + mb(size) + '</b> / 상한 16MB — 이미지를 넣을수록 커집니다.</p>';
@@ -284,7 +451,8 @@
 
     $('admNew').addEventListener('click', function () { openEditor(null); });
     $('admExit').addEventListener('click', exitAdmin);
-    $('admSave').addEventListener('click', function () { publish(msg, 'admSave'); });
+    $('admSave').addEventListener('click', function () { saveAll(msg, 'admSave'); });
+    wireGhPanel();
 
     if (downloadsCap) {
       $('admExport').addEventListener('click', function () {
@@ -743,7 +911,7 @@
       target.html = html;
       target.summary = textOf(html).slice(0, 120);
       renderNav(); renderHome();
-      publish(function (t, k) {
+      saveAll(function (t, k) {
         st.className = 'ed-status' + (k ? ' ' + k : '');
         st.textContent = t;
       }, 'edSave');
@@ -755,6 +923,7 @@
     var style = $('app-style').textContent;
     var shell = $('app-shell').textContent;
     var app = $('app-js').textContent;
+    var cfg = $('app-config').textContent;
     var json = JSON.stringify(data).replace(/</g, '\\u003c');
     return '<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n' +
       '<meta name="viewport" content="width=device-width,initial-scale=1">\n' +
@@ -762,12 +931,20 @@
       '<style id="app-style">' + style + '</style>\n</head>\n<body>\n' +
       shell + '\n' +
       '<script id="app-shell" type="text/plain">' + shell + CLOSE + '\n' +
+      '<script id="app-config" type="application/json">' + cfg + CLOSE + '\n' +
       '<script id="faq-data" type="application/json">' + json + CLOSE + '\n' +
       '<script id="app-js">' + app + CLOSE + '\n</body>\n</html>';
   }
 
+  // 아티팩트 안에서는 페이지가 스스로 새 버전을 발행하고,
+  // 정적 호스팅(GitHub Pages)에서는 저장소에 직접 커밋한다
+  function saveAll(say, btnId) {
+    if (artifactCap) return publishArtifact(say, btnId);
+    return ghSave(say, btnId);
+  }
+
   // `say(text, kind)` reports progress wherever the caller wants it
-  function publish(say, btnId) {
+  function publishArtifact(say, btnId) {
     var btn = btnId ? $(btnId) : null;
     if (!artifactCap) return say('이 화면에서는 저장할 수 없습니다.', 'err');
     var doc;

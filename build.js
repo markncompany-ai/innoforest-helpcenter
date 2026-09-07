@@ -29,10 +29,13 @@ const fontFace = `@font-face{
 }
 `;
 
+const cfg = read('config.json').trim();
+
 const html = `<title>혁신의숲 FAQ 아카이브</title>
 <style id="app-style">${fontFace}${css}</style>
 ${shell}
 <script id="app-shell" type="text/plain">${shell}${CLOSE}
+<script id="app-config" type="application/json">${cfg}${CLOSE}
 <script id="faq-data" type="application/json">${json}${CLOSE}
 <script id="app-js">${app}${CLOSE}
 `;

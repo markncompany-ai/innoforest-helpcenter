@@ -1,0 +1,46 @@
+name: 공개 페이지 다시 만들기
+
+# data.json 이나 화면 코드가 바뀌면 docs/index.html 을 다시 만들어 커밋한다.
+# 관리자 화면에서 저장하면 data.json 만 올라오므로, 실제 공개 페이지는 여기서 갱신된다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data.json'
+      - 'src/**'
+      - 'vendor/**'
+      - 'build.js'
+      - 'config.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-docs
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 페이지 만들기
+        run: node build.js
+
+      - name: 바뀐 내용 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- docs/; then
+            echo "바뀐 내용 없음"
+            exit 0
+          fi
+          git add docs/
+          git commit -m "공개 페이지 다시 생성 [skip ci]"
+          git push

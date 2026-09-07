@@ -15,7 +15,9 @@
 
 ```
 build.js                    빌드 스크립트
-sync.cmd                    공개 사이트 반영 (내려받은 파일 회수 + 빌드 + 기록 + 업로드)
+sync.cmd                    공개 사이트 반영 (토큰 없이 쓰는 대안 경로)
+config.json                 저장소 정보 — 관리자 화면이 어디에 저장할지
+.github/workflows/          data.json 이 바뀌면 공개 페이지를 자동 재생성
 data.json                   문의 내용 원본 (이미지 포함) — 실질적인 콘텐츠 DB
 src/
   shell.html                페이지 뼈대
@@ -42,8 +44,8 @@ node build.js
 Source 를 `Deploy from a branch`, 브랜치를 `main`, 폴더를 `/docs` 로 지정하면
 공개 주소: **https://sssyyy-hash.github.io/innoforest-faq/**
 
-> **Pages 로 띄운 페이지는 읽기 전용이다.** 관리자 모드는 Claude 아티팩트 환경에서만 켜지므로,
-> 외부 방문자에게는 편집 진입로가 아예 나타나지 않는다. 검색·목록·문의 페이지·테마 전환은 그대로 동작한다.
+공개 사이트에서도 관리자 모드로 편집·저장이 가능하다. 저장은 GitHub 저장소에 직접 기록하는 방식이며,
+운영자 본인의 GitHub 토큰이 있어야 한다. 토큰이 없는 방문자는 저장이 거부되므로 읽기만 가능하다.
 
 ## 콘텐츠 수정 방법
 
@@ -57,7 +59,18 @@ Source 를 `Deploy from a branch`, 브랜치를 `main`, 폴더를 `/docs` 로 �
 
 **이 단계까지는 공개 사이트에 반영되지 않는다.** 아티팩트와 공개 사이트는 별개의 사본이다.
 
-**2. 공개 사이트에 반영하기**
+**2. 운영자 — 공개 사이트에서 직접 (GitHub Pages)**
+
+공개 주소에서도 같은 방법(`💡 자주 물어보는 질문 BEST` 7번 클릭)으로 관리자 화면에 들어간다.
+처음 한 번만 **GitHub 토큰을 연결**하면, 그 뒤로는 수정하고 `저장하고 공개 사이트에 반영` 을 누르면 끝이다.
+
+토큰 발급: [Fine-grained token](https://github.com/settings/personal-access-tokens/new) 에서
+Repository access 를 이 저장소 하나만 선택하고, Permissions 의 **Contents 를 Read and write** 로 켠 뒤 만료일을 정한다.
+토큰은 그 브라우저에만 저장되며 페이지 소스나 저장소에는 들어가지 않는다.
+
+저장하면 `data.json` 이 커밋되고, GitHub Actions 가 `docs/index.html` 을 다시 만들어 1~2분 뒤 반영된다.
+
+**3. 토큰 없이 반영하기 (대안)**
 
 1. 관리자 화면에서 `⬇ 내용 내려받기` 를 누른다 → `data.json` 이 다운로드 폴더에 받아진다
 2. `sync.cmd` 를 더블클릭한다
@@ -71,7 +84,7 @@ Source 를 `Deploy from a branch`, 브랜치를 `main`, 폴더를 `/docs` 로 �
 node build.js && git add -A && git commit -m "FAQ 내용 갱신" && git push
 ```
 
-**3. 개발자 — 화면 자체를 고칠 때**
+**4. 개발자 — 화면 자체를 고칠 때**
 
 `src/` 를 수정한 뒤 `node build.js` 로 다시 빌드한다.
 화면 코드를 고쳤다면 아티팩트에도 같은 내용을 다시 발행해야 두 사본이 어긋나지 않는다.
