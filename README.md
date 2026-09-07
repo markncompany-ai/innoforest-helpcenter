@@ -42,7 +42,7 @@ node build.js
 
 `docs/` 폴더를 그대로 서비스하면 된다. 저장소 **Settings → Pages** 에서
 Source 를 `Deploy from a branch`, 브랜치를 `main`, 폴더를 `/docs` 로 지정하면
-공개 주소: **https://markncompany-ai.github.io/innoforest-faq-site-sssyyymade/**
+공개 주소: **https://markncompany-ai.github.io/innoforest-helpcenter/**
 
 공개 사이트에서도 관리자 모드로 편집·저장이 가능하다. 저장은 GitHub 저장소에 직접 기록하는 방식이며,
 운영자 본인의 GitHub 토큰이 있어야 한다. 토큰이 없는 방문자는 저장이 거부되므로 읽기만 가능하다.
